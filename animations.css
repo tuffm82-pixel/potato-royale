@@ -1,0 +1,73 @@
+/* Hand-drawn cutouts: transform/opacity only; all timing stays cosmetic. */
+#pieces{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.unit .sprite-pose,.unit .sprite-motion,.unit .sprite-attack{display:block;width:100%;height:100%;transform-origin:50% 84%;position:relative}
+.unit .sprite-image{display:block;width:100%;height:100%;object-fit:contain;transform:none!important}
+.unit .sprite-motion{animation:paper-idle 1.8s steps(5,end) infinite;animation-delay:var(--phase)}
+.unit.moving .sprite-motion{animation:paper-walk var(--stride) steps(5,end) infinite;animation-delay:var(--phase)}
+.unit[data-gait=hop].moving .sprite-motion{animation-name:paper-hop}
+.unit[data-gait=float] .sprite-motion,.unit.flying .sprite-motion{animation:paper-float 1.1s ease-in-out infinite;animation-delay:var(--phase)}
+.unit[data-gait=slither].moving .sprite-motion{animation-name:paper-slither}
+.unit[data-gait=scuttle].moving .sprite-motion{animation-name:paper-scuttle}
+.unit[data-gait=waddle].moving .sprite-motion,.unit[data-gait=barry].moving .sprite-motion{animation-name:paper-waddle}
+.unit[data-gait=sausage].moving .sprite-motion{animation-name:sausage-stride}
+.unit[data-gait=hero].moving .sprite-motion{animation-name:hero-stride}
+.unit[data-gait=charged].moving .sprite-motion{animation-name:charged-stride}
+.unit[data-gait=chef].moving .sprite-motion{animation-name:chef-stride}
+.unit[data-gait=sketcher].moving .sprite-motion{animation-name:sketch-stride}
+.unit.attacking .sprite-attack{animation:paper-swing .33s steps(4,end) both}
+.unit[data-attack=recoil].attacking .sprite-attack{animation-name:paper-recoil}
+.unit[data-attack=throw].attacking .sprite-attack{animation-name:paper-throw}
+.unit[data-attack=heal].attacking .sprite-attack{animation-name:paper-heal}
+.unit.taking-hit .sprite-pose{animation:paper-hit .19s steps(3,end) both}
+.unit.casting .sprite-attack{animation:paper-cast .55s steps(5,end) both}
+.unit.deploying .sprite-pose{animation:paper-arrive .6s steps(5,end) both}
+.unit.flying .sprite-pose{translate:0 -13px}
+.unit.stunned .sprite-motion,.unit.stunned .sprite-attack{animation-play-state:paused}
+.unit.defeated .sprite-pose{animation:paper-defeat .38s steps(5,end) both}
+.unit.defeated .hp-track,.unit.defeated .unit-status{visibility:hidden}
+.unit .unit-shadow{transition:opacity .15s;border-bottom:2px dashed #63554066}
+.unit.being-healed .hp-track{outline:2px solid #6a9d53}
+.network-motion .unit{transition:left .22s linear,top .22s linear}
+.tower-firing .tower-drawing{animation:tower-recoil .22s steps(3,end) both}
+.tower.taking-hit .tower-drawing{animation:paper-hit .2s steps(3,end) both}
+.tower.dead .tower-drawing{opacity:.28;transform:rotate(14deg) translateY(5px)}
+.combat-fx{position:absolute;z-index:8;pointer-events:none;color:var(--fx-color);font-family:'Comic Sans MS','Chalkboard SE',cursive;font-weight:bold}
+.projectile{width:13px;height:13px;line-height:13px;font-size:18px;text-shadow:1px 1px #fff;animation:pencil-projectile .32s linear both}
+.pencil-strike{font-size:30px;line-height:1;animation:pencil-impact .28s steps(4,end) both}
+.comic-burst{width:72px;height:58px;display:grid;place-items:center;margin:-29px 0 0 -36px;animation:pencil-burst .62s steps(6,end) both}
+.comic-burst:before{content:'';position:absolute;inset:4px;border:3px dashed currentColor;border-radius:43% 56% 47% 52%;transform:rotate(-13deg)}
+.burst-word{position:relative;padding:2px 4px;background:#fffbed;font-size:11px;transform:rotate(-9deg);text-shadow:1px 1px #fff}
+.combat-fx[data-kind=super-spud]{color:#267eae}.combat-fx[data-kind=super-spud]:before{border-radius:0;clip-path:polygon(40% 0,86% 0,60% 40%,100% 35%,25% 100%,45% 53%,0 66%);background:repeating-linear-gradient(145deg,#54a0cc 0 2px,transparent 2px 7px);inset:-13px}
+.combat-fx[data-kind=chef]{color:#66676e}.combat-fx[data-kind=chef]:before{border-radius:0;border-width:0 3px;transform:rotate(28deg)}
+.combat-fx[data-kind=barry]{color:#a77326}.combat-fx[data-kind=barry]:before{border-style:dotted;border-width:5px}
+.combat-fx[data-kind=greg-the-sausage]{color:#c05d31}.combat-fx[data-kind=three-french-men]{color:#736391}
+.combat-fx[data-kind=three-french-men]:before{border-radius:3px;transform:rotate(8deg);background:repeating-linear-gradient(130deg,transparent 0 5px,#73639133 5px 6px)}
+.combat-fx[data-kind=heal]{color:#477c36}.combat-fx[data-kind=heal]:before{border:0}.combat-fx[data-kind=heal] .burst-word{font-size:25px;background:transparent}
+.motion-paused *,.motion-paused *:before{animation-play-state:paused!important;transition:none!important}
+@keyframes paper-idle{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(1deg) scaleY(1.015)}}
+@keyframes paper-walk{0%,100%{transform:rotate(-5deg)}25%{transform:translateY(-3px) rotate(0)}50%{transform:rotate(5deg)}75%{transform:translateY(-3px)}}
+@keyframes paper-hop{0%,100%{transform:scaleY(.92)}35%,65%{transform:translateY(-9px) rotate(-3deg) scaleY(1.04)}}
+@keyframes paper-float{0%,100%{transform:translateY(-2px) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
+@keyframes paper-slither{0%,100%{transform:skewX(-7deg) scaleX(1.04)}50%{transform:skewX(7deg) scaleX(.94)}}
+@keyframes paper-scuttle{0%,100%{transform:translateX(-2px) rotate(-4deg)}50%{transform:translate(2px,-2px) rotate(4deg)}}
+@keyframes paper-waddle{0%,100%{transform:rotate(-7deg) scaleY(.98)}50%{transform:rotate(7deg) translateY(-2px)}}
+@keyframes sausage-stride{0%,100%{transform:rotate(-8deg) scaleX(.92)}50%{transform:rotate(8deg) scaleY(.94) translateY(-4px)}}
+@keyframes hero-stride{0%,100%{transform:rotate(-4deg) skewX(-3deg)}50%{transform:rotate(4deg) translateY(-5px) skewX(3deg)}}
+@keyframes charged-stride{0%,100%{transform:translateX(-1px) rotate(-3deg)}30%{transform:translate(2px,-4px)}60%{transform:translateX(-2px) rotate(3deg)}}
+@keyframes chef-stride{0%,100%{transform:rotate(-3deg)}50%{transform:translateY(-4px) rotate(4deg) scaleY(1.03)}}
+@keyframes sketch-stride{0%,100%{transform:rotate(-7deg)}35%{transform:translateY(-6px) rotate(2deg)}70%{transform:rotate(7deg)}}
+@keyframes paper-swing{0%{transform:rotate(-12deg)}45%{transform:translateY(calc(var(--facing)*6px)) rotate(14deg)}100%{transform:none}}
+@keyframes paper-recoil{0%{transform:none}30%{transform:translateY(calc(var(--facing)*-5px)) rotate(-6deg)}100%{transform:none}}
+@keyframes paper-throw{0%{transform:rotate(-18deg)}55%{transform:rotate(20deg) translateY(-3px)}100%{transform:none}}
+@keyframes paper-heal{0%,100%{transform:none}50%{transform:translateY(-4px) scale(1.1)}}
+@keyframes paper-hit{0%,100%{transform:none;opacity:1}30%{transform:translateX(-3px) rotate(-5deg);opacity:.55}65%{transform:translateX(3px) rotate(4deg)}}
+@keyframes paper-cast{0%,100%{transform:none}35%{transform:translateY(-7px) rotate(-8deg) scale(1.13)}65%{transform:rotate(9deg)}}
+@keyframes paper-arrive{0%{transform:translateY(-17px) scale(.3);opacity:0}65%{transform:scale(1.12,.9);opacity:1}100%{transform:none;opacity:1}}
+@keyframes paper-defeat{to{transform:rotate(48deg) translateY(10px) scale(.35);opacity:0}}
+@keyframes tower-recoil{40%{transform:translateY(3px) rotate(-3deg)}100%{transform:none}}
+@keyframes pencil-projectile{from{transform:translate(var(--travel-x),var(--travel-y)) scale(.5);opacity:.3}to{transform:translate(0,0) rotate(160deg) scale(1);opacity:1}}
+@keyframes pencil-impact{from{transform:translate(-50%,-50%) scale(.5) rotate(-20deg);opacity:1}to{transform:translate(-50%,-50%) scale(1.4) rotate(15deg);opacity:0}}
+@keyframes pencil-burst{0%{transform:scale(.35) rotate(-8deg);opacity:0}25%{transform:scale(1.12);opacity:1}80%{transform:scale(1);opacity:1}100%{transform:scale(1.2) translateY(-7px);opacity:0}}
+@media(prefers-reduced-motion:reduce){.unit *,.tower *,.combat-fx,.combat-fx:before{animation:none!important;transition:none!important}.unit.flying .sprite-pose{translate:0 -5px}.unit.defeated{opacity:0}.unit.taking-hit .hp-track{outline:2px solid #bd6644}.unit.casting .sprite-pose{outline:1px dashed #af773b}}
+
+.spell-stamp{position:absolute;width:49px;height:49px;object-fit:contain;top:-12px;left:12px;transform:rotate(-12deg);opacity:.85}.combat-fx[data-kind=spell] .burst-word{align-self:end}

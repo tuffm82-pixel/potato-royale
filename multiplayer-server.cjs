@@ -1,0 +1,46 @@
+'use strict';
+const crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path'),G=require('./game-core.js');
+const random=n=>crypto.randomBytes(n).toString('hex'),hash=t=>crypto.createHash('sha256').update(t).digest('hex');
+const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
+function createMultiplayer(options={}) {
+ const dataFile=options.dataFile===null?null:options.dataFile||path.join(__dirname,'.data','players.json');
+ const allowedOrigins=new Set(options.allowedOrigins||(process.env.ALLOWED_ORIGINS||'').split(',').map(s=>s.trim()).filter(Boolean));
+ const players=new Map(),sessions=new Map(),rooms=new Map(),queue=[],rates=new Map(),now=options.now||Date.now;
+ if(dataFile&&fs.existsSync(dataFile)){const saved=JSON.parse(fs.readFileSync(dataFile,'utf8'));for(const p of saved.slice(0,10000))if(/^[a-f0-9]{12}$/.test(p.code)&&/^[a-f0-9]{64}$/.test(p.secretHash))players.set(p.code,{...p,friends:Array.isArray(p.friends)?p.friends.slice(0,100):[],seen:0,roomId:null});}
+ function save(){if(!dataFile)return;fs.mkdirSync(path.dirname(dataFile),{recursive:true});fs.writeFileSync(dataFile+'.tmp',JSON.stringify([...players.values()].map(({code,name,secretHash,friends})=>({code,name,secretHash,friends}))),{mode:0o600});fs.renameSync(dataFile+'.tmp',dataFile);}
+ const publicPlayer=p=>({code:p.code,name:p.name});
+ function state(p){const r=rooms.get(p.roomId);return {me:publicPlayer(p),friends:p.friends.map(c=>players.get(c)).filter(Boolean).map(f=>({...publicPlayer(f),online:now()-f.seen<15000})),invites:[...rooms.values()].filter(r=>r.status==='waiting'&&r.invited===p.code).map(r=>({roomId:r.id,from:publicPlayer(players.get(r.members[0]))})),queued:queue.includes(p.code),room:r?{id:r.id,status:r.status,ranked:!!r.ranked,side:r.members[0]===p.code?'player':'enemy',opponent:r.members.length===2?publicPlayer(players.get(r.members.find(c=>c!==p.code))):null,battle:r.battle||null}:null};}
+ function deck(input){const p=G.newProfile();p.owned=Object.fromEntries(G.CARDS.map(c=>[c.id,{level:1,copies:0}]));if(!G.validDeck(p,input))fail(400,'Choose eight different cards, with at most one Champion.');return [...input];}
+ function removeQueue(p){const i=queue.indexOf(p.code);if(i>=0)queue.splice(i,1);}
+ function leave(p){removeQueue(p);const r=rooms.get(p.roomId);if(r){if(r.battle&&!r.battle.result){r.battle.result=r.members[0]===p.code?'loss':'win';r.status='finished';r.finished=now();}if(!r.battle)rooms.delete(r.id);}p.roomId=null;}
+ function available(p){const r=rooms.get(p.roomId);if(r&&r.status!=='finished')fail(409,'Leave your current room first.');p.roomId=null;removeQueue(p);}
+ function start(r,p,d){r.members.push(p.code);r.decks.push(d);p.roomId=r.id;const profile=G.newProfile();profile.owned=Object.fromEntries(G.CARDS.map(c=>[c.id,{level:1,copies:0}]));profile.decks[0]=r.decks[0];const b=G.createBattle(profile,false);b.online=true;b.ai=Infinity;b.decks.enemy=[...d];b.levels.enemy=Object.fromEntries(d.map(id=>[id,1]));r.battle=b;r.status='playing';r.last=now();}
+ function makeRoom(p,d,invited=null){if(rooms.size>=500)fail(503,'Server is full. Please try later.');const r={id:random(12),members:[p.code],decks:[d],invited,status:'waiting',created:now()};rooms.set(r.id,r);p.roomId=r.id;return r;}
+ function pulse(){const time=now();for(const r of rooms.values()){
+  if(r.status==='playing'){let remaining=Math.min(.5,(time-r.last)/1000);r.last=time;while(remaining>0){const dt=Math.min(.05,remaining);G.tick(r.battle,dt);remaining-=dt;}const gone=r.members.map(c=>time-players.get(c).seen>30000);if(!r.battle.result&&gone.some(Boolean))r.battle.result=gone.every(Boolean)?'draw':gone[0]?'loss':'win';if(r.battle.result){r.status='finished';r.finished=time;}}
+  if((r.status==='waiting'&&time-r.created>300000)||(r.status==='finished'&&time-r.finished>60000)){for(const c of r.members){const p=players.get(c);if(p.roomId===r.id)p.roomId=null;}rooms.delete(r.id);}
+ }for(const code of [...queue])if(time-players.get(code).seen>15000)removeQueue(players.get(code));for(const [key,s] of sessions)if(time-s.used>86400000)sessions.delete(key);for(const [key,r] of rates)if(time-r.at>60000)rates.delete(key);}
+ const timer=setInterval(pulse,50);timer.unref();
+ function send(res,status,value){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));}
+ async function body(req){if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))fail(415,'Send application/json.');const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>8192)fail(413,'Request too large.');chunks.push(chunk);}try{const v=JSON.parse(Buffer.concat(chunks).toString()||'{}');if(!v||typeof v!=='object'||Array.isArray(v))throw Error();return v;}catch{fail(400,'Invalid JSON.');}}
+ async function handle(req,res){let pathname;try{pathname=new URL(req.url,'http://localhost').pathname;}catch{send(res,400,{error:'Invalid URL.'});return true;}if(!pathname.startsWith('/api/'))return false;try{
+  const origin=req.headers.origin;if(origin){let same=false;try{const o=new URL(origin);same=['http:','https:'].includes(o.protocol)&&o.host===req.headers.host;}catch{}if(!same&&!allowedOrigins.has(origin))fail(403,'Origin not allowed.');res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');}
+  if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Methods':'GET, POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization'}).end();return true;}
+  const key=req.socket.remoteAddress,time=now(),rate=rates.get(key)||{at:time,count:0};if(time-rate.at>1000){rate.at=time;rate.count=0;}if(++rate.count>100)fail(429,'Too many requests.');if(rates.size<10000||rates.has(key))rates.set(key,rate);
+  if(req.method==='GET'&&pathname==='/api/health'){send(res,200,{ok:true,multiplayer:true});return true;}
+  if(!['GET','POST'].includes(req.method))fail(405,'Method not allowed.');const input=req.method==='POST'?await body(req):{};
+  const token=(req.headers.authorization||'').replace(/^Bearer /,'');let p;if(token&&token.length<=128){const h=hash(token),s=sessions.get(h);p=s?players.get(s.code):[...players.values()].find(p=>p.secretHash===h);if(p)sessions.set(h,{code:p.code,used:time});}
+  if(req.method==='POST'&&pathname==='/api/session'){if(p){p.seen=time;send(res,200,{token,...state(p)});return true;}if(token)fail(401,'Session expired. Create a new guest.');if(players.size>=10000)fail(503,'Guest capacity reached.');const secret=random(32);p={code:random(6),name:typeof input.name==='string'?input.name.trim().slice(0,24)||'Potato Player':'Potato Player',secretHash:hash(secret),friends:[],seen:time,roomId:null};players.set(p.code,p);sessions.set(p.secretHash,{code:p.code,used:time});save();send(res,201,{token:secret,...state(p)});return true;}
+  if(!p)fail(401,'Create a guest session first.');p.seen=time;
+  if(req.method==='GET'&&pathname==='/api/state'){send(res,200,state(p));return true;}if(req.method!=='POST')fail(404,'Unknown route.');
+  if(pathname==='/api/friends'){const code=typeof input.code==='string'?input.code.trim().toLowerCase():'';if(!players.has(code)||code===p.code)fail(404,'Friend code not found.');if(!p.friends.includes(code)){if(p.friends.length>=100)fail(400,'Friend list is full.');p.friends.push(code);save();}}
+  else if(pathname==='/api/queue'){const d=deck(input.deck);available(p);p.deck=d;const other=queue.map(c=>players.get(c)).find(q=>q.code!==p.code&&time-q.seen<15000);if(other){removeQueue(other);const r=makeRoom(other,other.deck);r.ranked=true;start(r,p,d);}else queue.push(p.code);}
+  else if(pathname==='/api/room'){const d=deck(input.deck);if(input.friendCode&&(!p.friends.includes(input.friendCode)||!players.has(input.friendCode)))fail(400,'Add this friend before inviting them.');available(p);makeRoom(p,d,input.friendCode||null);}
+  else if(pathname==='/api/join'){const d=deck(input.deck),r=rooms.get(input.roomId);if(!r||r.status!=='waiting'||r.members[0]===p.code)fail(404,'Room is no longer available.');if(r.invited&&r.invited!==p.code)fail(403,'This invitation belongs to another player.');available(p);start(r,p,d);}
+  else if(pathname==='/api/leave')leave(p);
+  else if(pathname==='/api/action'){const r=rooms.get(p.roomId);if(!r||r.status!=='playing')fail(409,'No active battle.');const side=r.members[0]===p.code?'player':'enemy';if(time-(p.actionAt||0)<80)fail(429,'Please wait before the next action.');p.actionAt=time;const ok=input.type==='deploy'?G.deploy(r.battle,side,input.index,input.x,input.y):input.type==='ability'?G.activateAbility(r.battle,side):false;if(!ok)fail(400,'Action rejected: check oil, card, cooldown and placement.');}
+  else fail(404,'Unknown route.');send(res,200,state(p));
+ }catch(e){if(!res.headersSent)send(res,e.status||500,{error:e.status?e.message:'Server error.'});else res.end();}return true;}
+ return {handle,close:()=>clearInterval(timer)};
+}
+module.exports={createMultiplayer};
